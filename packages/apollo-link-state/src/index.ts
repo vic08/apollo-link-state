@@ -7,10 +7,13 @@ import {
 } from 'apollo-link';
 import { ApolloCache } from 'apollo-cache';
 
-import { hasDirectives, getMainDefinition } from 'apollo-utilities';
+import { hasDirectives, getMainDefinition, assign } from 'apollo-utilities';
 import { graphql } from 'graphql-anywhere/lib/async';
 
-import { removeClientSetsFromDocument } from './utils';
+import {
+  removeClientSetsFromDocument,
+  getDirectivesFromDocument,
+} from './utils';
 
 const capitalizeFirstLetter = str => str.charAt(0).toUpperCase() + str.slice(1);
 
@@ -72,12 +75,18 @@ export const withClientState = (
         if (fieldValue !== undefined) return fieldValue;
 
         // Look for the field in the custom resolver map
-        const resolverMap = resolvers[(rootValue as any).__typename || type];
+        const resolverMap =
+          resolvers[(rootValue as any).__typename || type] || {};
         const resolve = resolverMap[fieldName];
         if (resolve) return resolve(rootValue, args, context, info);
       };
 
       return new Observable(observer => {
+        const clientQuery = getDirectivesFromDocument(
+          [{ name: 'client' }],
+          operation.query,
+        );
+        const clientData = cache.readQuery({ query: clientQuery });
         if (server) operation.query = server;
         const obs =
           server && forward
@@ -91,8 +100,8 @@ export const withClientState = (
         const sub = obs.subscribe({
           next: ({ data, errors }) => {
             const context = operation.getContext();
-
-            graphql(resolver, query, data, context, operation.variables)
+            const newData = assign({}, data, clientData);
+            graphql(resolver, query, newData, context, operation.variables)
               .then(nextData => {
                 observer.next({
                   data: nextData,
