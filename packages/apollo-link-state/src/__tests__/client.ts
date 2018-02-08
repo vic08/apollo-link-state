@@ -370,10 +370,11 @@ describe('cache usage', () => {
 });
 
 describe('sample usage', () => {
-  it.only('works for a simple counter app', done => {
+  it('works for a simple counter app', done => {
     const query = gql`
       query GetCount {
         count @client
+        lastCount # stored in db on server
       }
     `;
 
@@ -396,10 +397,6 @@ describe('sample usage', () => {
     };
 
     const local = withClientState({
-      cache: new InMemoryCache(),
-      defaults: {
-        count: 0,
-      },
       resolvers: {
         Query: {
           // initial count
@@ -425,7 +422,7 @@ describe('sample usage', () => {
 
     const client = new ApolloClient({
       cache: new InMemoryCache(),
-      link: local, //.concat(http),
+      link: local.concat(http),
     });
 
     let count = 0;
